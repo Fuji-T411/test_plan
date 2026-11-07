@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>テスト勉強シート作成アプリ</title>
+    <!-- Tailwind CSS for modern styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white !important; -webkit-print-color-adjust: exact; }
+            .sheet-page { box-shadow: none !important; margin: 0 !important; width: 100% !important; height: 100vh !important; page-break-after: always; }
+        }
+        /* 横向き用紙の基本スタイル (A4/B5/B4 横) */
+        .sheet-page {
+            width: 297mm;
+            min-height: 200mm;
+            margin: 0 auto 15mm auto;
+            background: white;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            padding: 8mm 12mm;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans">
+
+    <!-- 設定・コントロールパネル (画面表示用・印刷時非表示) -->
+    <div class="no-print max-w-6xl mx-auto p-6 bg-white shadow-md rounded-xl my-6">
+        <h1 class="text-2xl font-bold text-indigo-600 mb-4 flex items-center gap-2">
+            📋 テスト勉強シート作成アプリ（横向き専用）
+        </h1>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- 基本設定 -->
+            <div class="space-y-4">
+                <h2 class="font-bold text-slate-700 border-b pb-1">1. 用紙・期間設定</h2>
+                <div>
+                    <label class="block text-sm font-medium">用紙サイズ・レイアウト</label>
+                    <select id="paperSize" class="w-full mt-1 p-2 border rounded-lg bg-slate-50" onchange="generateSheet()">
+                        <option value="A4">A4 横（裏表）</option>
+                        <option value="B5" selected>B5 横（裏表）</option>
+                        <option value="B4">B4 横（見開き）</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium">テスト期間（日数）</label>
+                    <input type="number" id="testDays" value="10" min="3" max="20" class="w-full mt-1 p-2 border rounded-lg" oninput="generateSheet()">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium">自己ベスト（目標点）の常時表示</label>
+                    <input type="text" id="defaultGoalText" value="自己ベスト更新！" class="w-full mt-1 p-2 border rounded-lg" oninput="generateSheet()">
+                </div>
+            </div>
+
+            <!-- 教科・テスト範囲設定 -->
+            <div class="space-y-4">
+                <h2 class="font-bold text-slate-700 border-b pb-1">2. 教科・テスト設定</h2>
+                <div>
+                    <label class="block text-sm font-medium mb-1">対象教科（複数選択可）</label>
+                    <div class="grid grid-cols-2 gap-2 text-sm">
+                        <label><input type="checkbox" name="subjects" value="国語" checked onchange="generateSheet()"> 国語</label>
+                        <label><input type="checkbox" name="subjects" value="算数" checked onchange="generateSheet()"> 算数</label>
+                        <label><input type="checkbox" name="subjects" value="理科" onchange="generateSheet()"> 理科</label>
+                        <label><input type="checkbox" name="subjects" value="社会" onchange="generateSheet()"> 社会</label>
+                        <label><input type="checkbox" name="subjects" value="漢字" checked onchange="generateSheet()"> 漢字</label>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-sm font-medium">満点</label>
+                        <input type="number" id="maxScore" value="100" class="w-full mt-1 p-2 border rounded-lg" oninput="generateSheet()">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">合格点</label>
+                        <div class="flex items-center gap-2 mt-1">
+                            <input type="checkbox" id="hasPassingScore" checked onchange="generateSheet()">
+                            <input type="number" id="passingScore" value="90" class="w-full p-2 border rounded-lg" oninput="generateSheet()">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- オプション設定 -->
+            <div class="space-y-4">
+                <h2 class="font-bold text-slate-700 border-b pb-1">3. 作戦・レイアウトオプション</h2>
+                <div>
+                    <label class="block text-sm font-medium">自由記述の覚え方欄</label>
+                    <select id="useCustomMethod" class="w-full mt-1 p-2 border rounded-lg bg-slate-50" onchange="generateSheet()">
+                        <option value="yes" selected>あり（50〜60字の枠を表示）</option>
+                        <option value="no">なし</option>
+                    </select>
+                </div>
+                <div class="pt-4 flex gap-2">
+                    <button onclick="generateSheet()" class="w-1/2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold p-2.5 rounded-xl shadow transition text-sm">
+                        🔄 プレビュー更新
+                    </button>
+                    <button onclick="window.print()" class="w-1/2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold p-2.5 rounded-xl shadow transition text-sm">
+                        🖨️ 印刷 / PDF
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- プレビュー・印刷用シートコンテナ -->
+    <div id="sheetContainer" class="max-w-[297mm] mx-auto space-y-8">
+        <!-- 動的にJavaScriptでシートが生成されます -->
+    </div>
+
+    <script>
+        function generateSheet() {
+            const container = document.getElementById('sheetContainer');
+            container.innerHTML = '';
+
+            const paperSize = document.getElementById('paperSize').value;
+            const testDays = parseInt(document.getElementById('testDays').value) || 10;
+            const maxScore = document.getElementById('maxScore').value;
+            const hasPassing = document.getElementById('hasPassingScore').checked;
+            const passingScore = document.getElementById('passingScore').value;
+            const goalText = document.getElementById('defaultGoalText').value;
+            const useCustom = document.getElementById('useCustomMethod').value === 'yes';
+
+            const subjectCheckboxes = document.querySelectorAll('input[name="subjects"]:checked');
+            const subjects = Array.from(subjectCheckboxes).map(cb => cb.value);
+
+            if (subjects.length === 0) {
+                container.innerHTML = '<div class="p-6 bg-white rounded text-center text-red-500 font-bold">教科を少なくとも1つ選択してください。</div>';
+                return;
+            }
+
+            // --- 表面（Page 1）：目標・作戦・計画 ---
+            let page1 = document.createElement('div');
+            page1.className = `sheet-page border border-slate-300 rounded-lg shadow-sm ${paperSize === 'B5' ? 'max-w-[257mm]' : paperSize === 'A4' ? 'max-w-[297mm]' : 'max-w-[364mm]'}`;
+            
+            let p1Html = `
+                <div>
+                    <div class="flex justify-between items-center border-b-2 border-indigo-600 pb-1.5 mb-2">
+                        <h1 class="text-lg font-bold text-indigo-700">🎯 テスト勉強マスターシート【表面：作戦と計画】</h1>
+                        <div class="text-xs font-bold text-slate-600 flex gap-4">
+                            <span>組：<span class="inline-block w-12 border-b border-black"></span></span>
+                            <span>名前：<span class="inline-block w-28 border-b border-black"></span></span>
+                        </div>
+                    </div>
+
+                    <!-- 目標・点数エリア -->
+                    <div class="grid grid-cols-${Math.min(subjects.length, 5)} gap-1.5 mb-2">
+            `;
+
+            subjects.forEach(sub => {
+                p1Html += `
+                    <div class="border p-1.5 rounded bg-slate-50 text-[11px]">
+                        <div class="font-bold text-indigo-600 border-b mb-0.5">${sub}</div>
+                        <div>テスト日: <span class="inline-block w-12 border-b border-black"></span></div>
+                        <div>目標: ${goalText}</div>
+                        <div>満点:${maxScore}点 ${hasPassing ? `/ 合格:${passingScore}点` : ''}</div>
+                    </div>
+                `;
+            });
+
+            p1Html += `
+                    </div>
+
+                    <!-- 作戦メニューエリア -->
+                    <div class="border rounded p-1.5 mb-2 bg-white text-[11px]">
+                        <div class="font-bold text-slate-700 mb-1">📝 覚え方・学び方の作戦メニュー（選んでチェックしよう！）</div>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-1.5">
+                            <label class="border p-1 rounded flex items-start gap-1 bg-slate-50"><input type="checkbox" class="mt-0.5"> <div><b>ひたすら練習作戦</b><br><span class="text-[9px] text-slate-500">ノートに順番に問題を解きまくる</span></div></label>
+                            <label class="border p-1 rounded flex items-start gap-1 bg-slate-50"><input type="checkbox" class="mt-0.5"> <div><b>テストまちがい特訓作戦</b><br><span class="text-[9px] text-slate-500">間違えた問題だけ集中的に直す</span></div></label>
+                            <label class="border p-1 rounded flex items-start gap-1 bg-slate-50"><input type="checkbox" class="mt-0.5"> <div><b>問題出し合い作戦</b><br><span class="text-[9px] text-slate-500">家族や友達と問題出し合いっこ</span></div></label>
+                            <label class="border p-1 rounded flex items-start gap-1 bg-slate-50"><input type="checkbox" class="mt-0.5"> <div><b>パーツ・意味注目</b><br><span class="text-[9px] text-slate-500">部首や意味、式やきまりに注目</span></div></label>
+                        </div>
+            `;
+
+            if (useCustom) {
+                p1Html += `
+                        <div class="mt-1.5 pt-1.5 border-t flex items-center gap-2">
+                            <span class="font-bold text-indigo-600 whitespace-nowrap text-[10px]">💡 自分に合った覚え方・その他：</span>
+                            <div class="border border-dashed border-slate-400 p-0.5 rounded w-full h-6 text-[10px] text-slate-400 flex items-center px-1">※特に注意したい内容、覚え方、取り組む量を50〜60字程度で書こう</div>
+                        </div>
+                `;
+            }
+
+            p1Html += `</div>`;
+
+            // 学習計画表エリア
+            p1Html += `
+                    <div class="border rounded p-1.5 bg-white text-[11px]">
+                        <div class="font-bold text-slate-700 mb-1">📅 10日間の学習計画表 <span class="text-[9px] font-normal text-slate-500">（※テスト範囲から選んで予定を書き込もう！計画通り進んだら [◯] をつけよう）</span></div>
+                        <table class="w-full border-collapse text-center text-[10px]">
+                            <thead>
+                                <tr class="bg-indigo-50 text-indigo-900">
+                                    <th class="border p-0.5 w-14">教科</th>
+                                    <th class="border p-0.5">テスト範囲（単元・ページなど）</th>
+            `;
+            for(let i=1; i<=testDays; i++) {
+                p1Html += `<th class="border p-0.5 w-7">${i}日</th>`;
+            }
+            p1Html += `</tr></thead><tbody>`;
+
+            subjects.forEach(sub => {
+                p1Html += `
+                    <tr>
+                        <td class="border p-0.5 font-bold bg-slate-50">${sub}</td>
+                        <td class="border p-0.5 text-left"><input type="text" placeholder="${sub}のテスト範囲を入力..." class="w-full text-[10px] p-0.5 border-0 bg-transparent"></td>
+                `;
+                for(let i=1; i<=testDays; i++) {
+                    p1Html += `<td class="border p-0.5"><input type="text" class="w-full text-center text-[9px] border-0 bg-slate-50 h-5"></td>`;
+                }
+                p1Html += `</tr>`;
+            });
+
+            p1Html += `</tbody></table></div></div>
+                <div class="text-right text-[9px] text-slate-400 pt-0.5">（表面）</div>
+            `;
+            page1.innerHTML = p1Html;
+            container.appendChild(page1);
+
+
+            // --- 裏面（Page 2）：日々の記録・定着度・強化ポイント・結果・振り返り ---
+            let page2 = document.createElement('div');
+            page2.className = `sheet-page border border-slate-300 rounded-lg shadow-sm ${paperSize === 'B5' ? 'max-w-[257mm]' : paperSize === 'A4' ? 'max-w-[297mm]' : 'max-w-[364mm]'}`;
+
+            let p2Html = `
+                <div>
+                    <div class="flex justify-between items-center border-b-2 border-emerald-600 pb-1.5 mb-2">
+                        <h1 class="text-lg font-bold text-emerald-700">📈 テスト勉強マスターシート【裏面：記録と振り返り】</h1>
+                        <div class="text-xs font-bold text-slate-600">
+                            <span>名前：<span class="inline-block w-28 border-b border-black"></span></span>
+                        </div>
+                    </div>
+
+                    <!-- 日々の記録 ＆ 定着度チェック -->
+                    <div class="border rounded p-1.5 mb-1.5 bg-white text-[11px]">
+                        <div class="font-bold text-slate-700 mb-1">📊 日々の記録（正の字） ＆ 定着度（🔴要特訓 / 🟡あやしい / 🟢バッチリ）</div>
+                        <table class="w-full border-collapse text-center text-[10px]">
+                            <thead>
+                                <tr class="bg-emerald-50 text-emerald-900">
+                                    <th class="border p-0.5 w-14">教科</th>
+            `;
+            for(let i=1; i<=testDays; i++) {
+                p2Html += `<th class="border p-0.5">${i}日目</th>`;
+            }
+            p2Html += `</tr></thead><tbody>`;
+
+            subjects.forEach(sub => {
+                p2Html += `
+                    <tr>
+                        <td class="border p-0.5 font-bold bg-slate-50">${sub}</td>
+                `;
+                for(let i=1; i<=testDays; i++) {
+                    p2Html += `<td class="border p-0.5 h-8 align-middle"><div class="text-[8px] text-slate-400 leading-none">正:</div><div class="text-[8px] text-emerald-600 font-bold leading-tight">[🔴🟡🟢]</div></td>`;
+                }
+                p2Html += `</tr>`;
+            });
+
+            p2Html += `</tbody></table></div>
+
+                    <!-- 自分の強化ポイント ＆ テスト結果 -->
+                    <div class="grid grid-cols-3 gap-1.5 mb-1.5">
+                        <div class="col-span-2 border rounded p-1.5 bg-white text-[11px]">
+                            <div class="font-bold text-slate-700 mb-0.5">💪 自分の強化ポイント（まちがえやすい問題などを自由にメモしよう）</div>
+                            <div class="border border-dashed border-slate-400 rounded h-12 p-1"></div>
+                        </div>
+                        <div class="border rounded p-1.5 bg-white text-[11px] flex flex-col justify-between">
+                            <div class="font-bold text-slate-700">🏆 テスト結果</div>
+                            <div class="grid grid-cols-${Math.min(subjects.length, 3)} gap-1 my-auto">
+            `;
+
+            subjects.forEach(sub => {
+                p2Html += `<div class="border p-0.5 rounded text-center bg-slate-50"><span class="font-bold">${sub}</span><br><span class="text-xs font-bold text-indigo-600">___ / ${maxScore}点</span></div>`;
+            });
+
+            p2Html += `</div></div></div>
+
+                    <!-- 振り返り ＆ 保護者サイン -->
+                    <div class="grid grid-cols-4 gap-1.5 border rounded p-1.5 bg-white text-[11px]">
+                        <div class="col-span-3 flex flex-col justify-between">
+                            <div class="font-bold text-slate-700">✍️ 全教科をふりかえって（120〜150字程度）</div>
+                            <div class="border border-dashed border-slate-400 rounded h-12 p-1 text-[9px] text-slate-400">
+                                計画通りに進められたか、どの覚え方が効果的だったか、次のテストに活かしたいことなどを書きましょう。
+                            </div>
+                        </div>
+                        <div class="border-l pl-1.5 flex flex-col justify-between">
+                            <div class="font-bold text-slate-700">👪 お家の人から</div>
+                            <div class="border border-slate-300 rounded h-12 p-1 text-[9px] text-slate-400 flex items-end justify-end">
+                                サイン：
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+                <div class="text-right text-[9px] text-slate-400 pt-0.5">（裏面）</div>
+            `;
+            page2.innerHTML = p2Html;
+            container.appendChild(page2);
+        }
+
+        window.onload = generateSheet;
+    </script>
+</body>
+</html>
